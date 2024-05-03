@@ -40,7 +40,9 @@ func (s *Server) Stop() {
 func (s *Server) StoreData(key string, data []byte) error {
 	// 1. Store the file to local
 	reader := bytes.NewReader(data)
-	err := s.store.Store(key, reader)
+	var buf bytes.Buffer
+	r := io.TeeReader(reader, &buf)
+	err := s.store.Store(key, r)
 	if err != nil {
 		return err
 	}
@@ -51,7 +53,7 @@ func (s *Server) StoreData(key string, data []byte) error {
 	}
 
 	time.Sleep(100 * time.Millisecond)
-	return s.stream(reader)
+	return s.stream(bytes.NewReader(buf.Bytes()))
 }
 
 func (s *Server) broadcast(data []byte, dataSize int64) error {
@@ -90,6 +92,16 @@ func (s *Server) AddPeer(peer Peer) error {
 	return nil
 }
 
+func (s *Server) GetPeer(addr string) Peer {
+	s.peersMu.Lock()
+	defer s.peersMu.Unlock()
+	peer, ok := s.peers[addr]
+	if !ok {
+		return nil
+	}
+	return peer
+}
+
 func (s *Server) Start() error {
 	if err := s.Transport.ListenAndAccept(); err != nil {
 		return err
@@ -112,8 +124,8 @@ func (s *Server) loop() {
 		case msg := <-s.Transport.Consume():
 			log.Printf("loop: from [%s] is receving msg %v\n", msg.From, msg)
 
-			peer, ok := s.peers[msg.From]
-			if !ok {
+			peer := s.GetPeer(msg.From)
+			if peer == nil {
 				log.Printf("%s peer not found", msg.From)
 				continue
 			}
