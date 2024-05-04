@@ -13,8 +13,8 @@ import (
 )
 
 func init() {
-	gob.Register(StoreMessage{})
-	gob.Register(ReadMessage{})
+	gob.Register(&StoreMessage{})
+	gob.Register(&ReadMessage{})
 }
 
 type Server struct {
@@ -42,14 +42,26 @@ func (s *Server) Stop() {
 	close(s.quitCh)
 }
 
-func (s *Server) GetData(key string) (io.ReadCloser, error) {
+func (s *Server) GetData(key string) (io.ReadCloser, int64, error) {
 	// 1. Get data from local
 	if s.store.HasKey(key) {
 		return s.store.Get(key)
 	}
 
 	// 2. If data doesn't exist in local, get from other peer
-	return nil, nil
+	msg := &Message{
+		Type: IncomingMessageType,
+		Payload: &ReadMessage{
+			Key: key,
+		},
+	}
+
+	err := s.broadcast(msg)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return nil, 0, nil
 }
 
 func (s *Server) StoreDataLocal(key string, r io.Reader) error {
@@ -68,6 +80,7 @@ func (s *Server) StoreData(key string, data []byte) error {
 
 	// 2. Broadcast the key and file
 	msg := &Message{
+		Type: StreamMessageType,
 		Payload: &StoreMessage{
 			Key:      key,
 			DataSize: reader.Size(),
@@ -143,7 +156,7 @@ func (s *Server) loop() {
 	for {
 		select {
 		case msg := <-s.Transport.Consume():
-			log.Printf("loop: from [%s] is receving msg %v\n", msg.From, msg)
+			log.Printf("loop: from [%s]'s msg %v\n", msg.From, msg)
 
 			peer := s.GetPeer(msg.From)
 			if peer == nil {
@@ -153,9 +166,19 @@ func (s *Server) loop() {
 
 			switch v := msg.Payload.(type) {
 			case *StoreMessage:
-				s.handleStoreMessage(v, peer)
-			case *ReadMessage:
+				defer peer.StopStreaming()
 
+				if err := s.handleStoreMessage(v, peer); err != nil {
+					log.Printf("handle storage message error: %v\n", err)
+				}
+
+			case *ReadMessage:
+				if err := s.handleReadMessage(v, peer); err != nil {
+					log.Printf("handle storage message error: %v\n", err)
+				}
+
+			default:
+				log.Printf("no such message type %T\n", v)
 			}
 
 		case <-s.quitCh:
@@ -167,12 +190,37 @@ func (s *Server) loop() {
 
 func (s *Server) handleStoreMessage(msg *StoreMessage, peer Peer) error {
 	log.Printf("start to copy stream, expect size: %d\n", msg.DataSize)
-	defer peer.StopStreaming()
 
 	return s.store.Store(string(msg.Key), io.LimitReader(peer, msg.DataSize))
 }
 
 func (s *Server) handleReadMessage(msg *ReadMessage, peer Peer) error {
+	if !s.store.HasKey(msg.Key) {
+		log.Printf("%s not found", peer.LocalAddr())
+		return nil
+	}
 
-	return nil
+	log.Printf("%s found", peer.LocalAddr())
+	r, n, err := s.store.Get(msg.Key)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 1. Reply found file with the key
+	reMsg := &Message{
+		Type: StreamMessageType,
+		Payload: &StoreMessage{
+			Key:      msg.Key,
+			DataSize: n,
+		},
+	}
+
+	if err = peer.Send(reMsg); err != nil {
+		return err
+	}
+
+	// 2. Stream
+	_, err = io.Copy(peer, r)
+	return err
 }

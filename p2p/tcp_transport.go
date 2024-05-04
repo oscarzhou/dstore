@@ -85,17 +85,22 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	}
 
 	for {
-		log.Printf("[%s] is reading message from [%s]\n\n", t.listenAddress, peer.RemoteAddr())
 		var msg Message
 		if err := t.decoder.Decode(peer, &msg); err != nil {
 			log.Printf("1 decode error: %v", err)
 			continue
 		}
 
+		log.Printf("[%s] -> [%s]: %v\n\n", peer.RemoteAddr(), t.listenAddress, msg)
 		msg.From = peer.RemoteAddr().String()
-
 		peer.wg.Add(1)
 		t.msgCh <- msg
-		peer.wg.Wait()
+
+		switch msg.Type {
+		case IncomingMessageType:
+			peer.wg.Done()
+		case StreamMessageType:
+			peer.wg.Wait()
+		}
 	}
 }

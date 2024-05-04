@@ -1,7 +1,15 @@
 package p2p
 
+type MessageType int
+
+const (
+	IncomingMessageType MessageType = iota
+	StreamMessageType
+)
+
 type Message struct {
 	From    string
+	Type    MessageType
 	Payload interface{}
 }
 

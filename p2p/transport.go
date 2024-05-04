@@ -1,14 +1,13 @@
 package p2p
 
 import (
-	"io"
 	"net"
 )
 
 // Peer is the object that can
 type Peer interface {
 	net.Conn
-	Send(r io.Reader) error
+	Send(*Message) error
 	StopStreaming()
 }
 

@@ -17,7 +17,7 @@ func TestStore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, s.HasKey(key), true)
 
-	r, err := s.Get(key)
+	r, _, err := s.Get(key)
 	assert.NoError(t, err)
 	defer r.Close()
 

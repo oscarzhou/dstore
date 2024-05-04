@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/containerd/log"
 	"github.com/oscarzhou/dstore/p2p"
 	"github.com/oscarzhou/dstore/storage"
 )
@@ -39,12 +38,7 @@ func main() {
 	// }
 
 	key := "myprivatekey"
-	reader, err := s1.GetData(key)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer reader.Close()
-	err = s1.StoreDataLocal(key, reader)
+	_, _, err := s1.GetData(key)
 	if err != nil {
 		log.Fatal(err)
 	}

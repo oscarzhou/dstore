@@ -24,6 +24,11 @@ func NewStore(root string, transformFn TransformKeyFunc) *Store {
 }
 
 func (s *Store) Store(key string, r io.Reader) error {
+	if s.HasKey(key) {
+		log.Printf("store has key")
+		return nil
+	}
+
 	// store key to local folder
 	keyPath := s.transformFn(key)
 	keyPathWithRoot := path.Join(s.Root, filepath.Dir(keyPath))
@@ -59,13 +64,18 @@ func (s *Store) HasKey(key string) bool {
 	return err == nil
 }
 
-func (s *Store) Get(key string) (io.ReadCloser, error) {
+func (s *Store) Get(key string) (io.ReadCloser, int64, error) {
 	keyPath := s.transformFn(key)
 	keyFileWithRoot := path.Join(s.Root, keyPath)
 	f, err := os.Open(keyFileWithRoot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %v", err)
+		return nil, 0, fmt.Errorf("failed to open file: %v", err)
 	}
 
-	return f, nil
+	info, err := f.Stat()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to stat file: %v", err)
+	}
+
+	return f, info.Size(), nil
 }

@@ -1,7 +1,7 @@
 package p2p
 
 import (
-	"io"
+	"encoding/gob"
 	"net"
 	"sync"
 )
@@ -23,37 +23,8 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
-func (tp *TCPPeer) Send(r io.Reader) error {
-	// msg := &Message{
-	// 	Payload: data,
-	// }
-
-	// buf := new(bytes.Buffer)
-
-	// if err := gob.NewEncoder(buf).Encode(msg); err != nil {
-	// 	return
-	// }
-
-	// _, err := tp.Conn.Write(buf.Bytes())
-	// if err != nil {
-	// 	log.Printf("failed to send data: %v\n", err)
-	// 	return
-	// }
-
-	// buf := make([]byte, 1024)
-	// n, err := r.Read(buf)
-	// if err != nil {
-	// 	log.Printf("failed to read data before send: %v", err)
-	// 	return err
-	// }
-	// fmt.Printf("send %v", buf[:n])
-
-	// _, err = tp.Write(buf[:n])
-	// if err != nil {
-	// 	log.Printf("failed to send data: %v", err)
-	// 	return err
-	// }
-	return nil
+func (tp *TCPPeer) Send(msg *Message) error {
+	return gob.NewEncoder(tp).Encode(msg)
 }
 
 func (tp *TCPPeer) StopStreaming() {
