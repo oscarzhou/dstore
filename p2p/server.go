@@ -12,6 +12,11 @@ import (
 	"github.com/oscarzhou/dstore/storage"
 )
 
+func init() {
+	gob.Register(StoreMessage{})
+	gob.Register(ReadMessage{})
+}
+
 type Server struct {
 	Transport
 
@@ -37,6 +42,20 @@ func (s *Server) Stop() {
 	close(s.quitCh)
 }
 
+func (s *Server) GetData(key string) (io.ReadCloser, error) {
+	// 1. Get data from local
+	if s.store.HasKey(key) {
+		return s.store.Get(key)
+	}
+
+	// 2. If data doesn't exist in local, get from other peer
+	return nil, nil
+}
+
+func (s *Server) StoreDataLocal(key string, r io.Reader) error {
+	return s.store.Store(key, r)
+}
+
 func (s *Server) StoreData(key string, data []byte) error {
 	// 1. Store the file to local
 	reader := bytes.NewReader(data)
@@ -48,7 +67,13 @@ func (s *Server) StoreData(key string, data []byte) error {
 	}
 
 	// 2. Broadcast the key and file
-	if err := s.broadcast([]byte(key), reader.Size()); err != nil {
+	msg := &Message{
+		Payload: &StoreMessage{
+			Key:      key,
+			DataSize: reader.Size(),
+		},
+	}
+	if err := s.broadcast(msg); err != nil {
 		return err
 	}
 
@@ -56,7 +81,7 @@ func (s *Server) StoreData(key string, data []byte) error {
 	return s.stream(bytes.NewReader(buf.Bytes()))
 }
 
-func (s *Server) broadcast(data []byte, dataSize int64) error {
+func (s *Server) broadcast(msg *Message) error {
 	peers := make([]io.Writer, len(s.peers))
 	i := 0
 	for _, peer := range s.peers {
@@ -65,10 +90,6 @@ func (s *Server) broadcast(data []byte, dataSize int64) error {
 	}
 	mw := io.MultiWriter(peers...)
 
-	msg := &Message{
-		Payload: data,
-		Size:    dataSize,
-	}
 	return gob.NewEncoder(mw).Encode(msg)
 }
 
@@ -130,13 +151,11 @@ func (s *Server) loop() {
 				continue
 			}
 
-			defer peer.StopStreaming()
+			switch v := msg.Payload.(type) {
+			case *StoreMessage:
+				s.handleStoreMessage(v, peer)
+			case *ReadMessage:
 
-			log.Printf("start to copy stream, expect size: %d\n", msg.Size)
-			err := s.store.Store(string(msg.Payload), io.LimitReader(peer, msg.Size))
-			if err != nil {
-				log.Println(err)
-				continue
 			}
 
 		case <-s.quitCh:
@@ -144,4 +163,16 @@ func (s *Server) loop() {
 			return
 		}
 	}
+}
+
+func (s *Server) handleStoreMessage(msg *StoreMessage, peer Peer) error {
+	log.Printf("start to copy stream, expect size: %d\n", msg.DataSize)
+	defer peer.StopStreaming()
+
+	return s.store.Store(string(msg.Key), io.LimitReader(peer, msg.DataSize))
+}
+
+func (s *Server) handleReadMessage(msg *ReadMessage, peer Peer) error {
+
+	return nil
 }

@@ -1,16 +1,15 @@
 package p2p
 
-import (
-	"io"
-)
-
 type Message struct {
 	From    string
-	Payload []byte
-	Size    int64
+	Payload interface{}
 }
 
 type StoreMessage struct {
-	Key  string
-	Data io.Reader
+	Key      string
+	DataSize int64
+}
+
+type ReadMessage struct {
+	Key string
 }

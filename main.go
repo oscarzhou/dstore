@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/containerd/log"
 	"github.com/oscarzhou/dstore/p2p"
 	"github.com/oscarzhou/dstore/storage"
 )
@@ -20,7 +21,7 @@ func makeServer(storeRoot, advertisePort string, joinPorts ...string) *p2p.Serve
 
 func main() {
 
-	s1 := makeServer("[netstore:40000]", ":40000")
+	s1 := makeServer("[netstore:main]", ":40000")
 	s2 := makeServer("[netstore:30000]", ":30000", ":40000")
 
 	go func() {
@@ -31,11 +32,23 @@ func main() {
 	go s2.Start()
 	time.Sleep(2 * time.Second)
 
-	data := []byte("This a distributed storage project")
-	err := s1.StoreData("myprivatekey", data)
+	// data := []byte("This a distributed storage project")
+	// err := s1.StoreData("myprivatekey", data)
+	// if err != nil {
+	// 	log.Fatalf("store data error: %v", err)
+	// }
+
+	key := "myprivatekey"
+	reader, err := s1.GetData(key)
 	if err != nil {
-		log.Fatalf("store data error: %v", err)
+		log.Fatal(err)
 	}
+	defer reader.Close()
+	err = s1.StoreDataLocal(key, reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	select {}
 
 }

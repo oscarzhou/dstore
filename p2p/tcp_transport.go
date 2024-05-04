@@ -75,7 +75,7 @@ func (t *TCPTransport) startAcceptLoop() {
 
 func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	peer := NewTCPPeer(conn, outbound)
-	fmt.Printf("new incoming connection %+v\n", peer.RemoteAddr())
+	fmt.Printf("[%s] receives a new incoming connection %+v\n", t.listenAddress, peer.RemoteAddr())
 
 	if t.OnPeer != nil {
 		if err := t.OnPeer(peer); err != nil {
@@ -85,7 +85,7 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	}
 
 	for {
-		log.Printf("[%s] is reading message from [%s]\n\n", peer.LocalAddr(), peer.RemoteAddr())
+		log.Printf("[%s] is reading message from [%s]\n\n", t.listenAddress, peer.RemoteAddr())
 		var msg Message
 		if err := t.decoder.Decode(peer, &msg); err != nil {
 			log.Printf("1 decode error: %v", err)
@@ -93,11 +93,9 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 		}
 
 		msg.From = peer.RemoteAddr().String()
-		log.Printf("from: %s, read message: %v\n", string(msg.From), msg.Payload)
 
 		peer.wg.Add(1)
 		t.msgCh <- msg
-		log.Printf("[%s] is waiting\n", string(msg.From))
 		peer.wg.Wait()
 	}
 }

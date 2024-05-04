@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"encoding/gob"
-	"fmt"
 	"io"
 	"log"
 )
@@ -29,7 +28,5 @@ func (nd *NopDecoder) Decode(r io.Reader, v *Message) error {
 	}
 
 	v.Payload = buf[:n]
-	v.Size = int64(n)
-	fmt.Printf("write %d bytes\n", n)
 	return nil
 }

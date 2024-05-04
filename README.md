@@ -1,2 +1,2 @@
 # dstore
-A distributed database written by Go
+A distributed file storage written by Go
